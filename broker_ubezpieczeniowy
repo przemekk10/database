@@ -108,7 +108,7 @@ GO
 
 CREATE TABLE WelfareInsurance
 (
-    WITypeID BIT NOT NULL,
+    WITypeID CHAR PRIMARY KEY NOT NULL,
     WelfaceName NVARCHAR(255) NOT NULL,
     WelfareValue MONEY NOT NULL,
     CHECK (WelfareValue>0)
@@ -135,7 +135,7 @@ CREATE TABLE Klient_Insurance
 (
     FOREIGN KEY (Klient_PESEL) REFERENCES Klient(PESEL),
     FOREIGN KEY (PolicyNumber) REFERENCES Insurance(PolicyNumber),
-    PolicyNumber CHAR NOT NULL,
-    Klient_PESEL CHAR NOT NULL
+    PolicyNumber CHAR(10) NOT NULL,
+    Klient_PESEL CHAR(11) NOT NULL
 )
 GO
