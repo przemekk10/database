@@ -1,0 +1,289 @@
+USE [Broker_ubezpieczeniowy]
+GO
+
+-- ustawienie warto�ci w tabeli WITypeID dla tabeli WelfareInsurance --
+DROP PROCEDURE IF EXISTS create_id_wi
+GO
+
+CREATE PROCEDURE create_id_wi
+	@NewID char(255) OUTPUT
+AS
+	IF(NOT EXISTS(SELECT 1 FROM WelfareInsurance))
+		BEGIN
+			SET @NewID = '1W'
+		END
+	ELSE
+		BEGIN
+			SET @NewID = (
+				SELECT CONCAT(Q2.CountID, 'W') FROM 
+				(
+					SELECT Q1.NextID + 1 AS CountID FROM 
+					(
+						SELECT COUNT(wiid.WITypeID) AS NextID FROM WelfareInsurance wiid
+					) AS Q1
+				) AS Q2)
+		END
+GO
+
+-- ustawienie warto�ci w tabeli VITypeID dla tabeli VehicleInsurance --
+DROP PROCEDURE IF EXISTS create_id_vi
+GO
+
+CREATE PROCEDURE create_id_vi
+	@NewID char(255) OUTPUT
+AS
+	IF(NOT EXISTS(SELECT 1 FROM VehicleInsurance))
+		BEGIN
+			SET @NewID = '1V'
+		END
+	ELSE
+		BEGIN
+			SET @NewID = (
+				SELECT CONCAT(Q2.CountID, 'V') FROM 
+				(
+					SELECT Q1.NextID + 1 AS CountID FROM 
+					(
+						SELECT COUNT(viid.VITypeID) AS NextID FROM VehicleInsurance viid
+					) AS Q1
+				) AS Q2)
+		END
+GO
+
+-- ustawienie warto�ci w tabeli LITypeID dla tabeli LifeInsurance --
+DROP PROCEDURE IF EXISTS create_id_li
+GO
+
+CREATE PROCEDURE create_id_li
+	@NewID char(255) OUTPUT
+AS
+	IF(NOT EXISTS(SELECT 1 FROM LifeInsurance))
+		BEGIN
+			SET @NewID = '1L'
+		END
+	ELSE
+		BEGIN
+			SET @NewID = (
+				SELECT CONCAT(Q2.CountID, 'L') FROM 
+				(
+					SELECT Q1.NextID + 1 AS CountID FROM 
+					(
+						SELECT COUNT(liid.LITypeID) AS NextID FROM LifeInsurance liid
+					) AS Q1
+				) AS Q2)
+		END
+GO
+
+-- trigger dodaj�cy nowe id, na podstawie procedury dla tabeli WelfareInsurance --
+DROP TRIGGER IF EXISTS insert_id_wi
+GO
+
+CREATE TRIGGER insert_id_wi
+ON WelfareInsurance
+INSTEAD OF INSERT
+AS
+	SET NOCOUNT ON
+	DECLARE @InputID char(255)
+	EXECUTE create_id_wi @InputID OUTPUT
+	INSERT INTO WelfareInsurance SELECT
+		@InputID,
+		i.WelfaceName,
+		i.WelfareValue
+	FROM inserted i
+
+	SELECT * FROM inserted
+GO
+
+-- trigger dodaj�cy nowe id, na podstawie procedury dla tabeli VehicleInsurance --
+DROP TRIGGER IF EXISTS insert_id_vi
+GO
+
+CREATE TRIGGER insert_id_vi
+ON VehicleInsurance
+INSTEAD OF INSERT
+AS
+	SET NOCOUNT ON
+	DECLARE @InputID char(255)
+	EXECUTE create_id_vi @InputID OUTPUT
+	INSERT INTO VehicleInsurance SELECT
+		@InputID,
+		i.OC,
+		i.AC,
+		i.Assistance,
+		i.Window,
+		i.NNW
+	FROM inserted i
+
+	SELECT * FROM inserted
+GO
+
+-- trigger dodaj�cy nowe id, na podstawie procedury dla tabeli LifeInsurance --
+DROP TRIGGER IF EXISTS insert_id_li
+GO
+
+CREATE TRIGGER insert_id_li
+ON LifeInsurance
+INSTEAD OF INSERT
+AS
+	SET NOCOUNT ON
+	DECLARE @InputID char(255)
+	EXECUTE create_id_li @InputID OUTPUT
+	INSERT INTO LifeInsurance SELECT
+		@InputID,
+		i.LifeInfurance,
+		i.PensionInsurance,
+		i.HealthInsurance
+	FROM inserted i
+
+	SELECT * FROM inserted
+GO
+
+-- procedura sprawdzania adresu email w tabeli InsuranceCompany --
+DROP PROCEDURE IF EXISTS check_email
+GO
+
+CREATE PROCEDURE check_email
+	@email nvarchar(max)
+AS
+	IF(@email NOT LIKE '*?@?*.?*')
+	BEGIN 
+		PRINT 'Adres e-mail nie poprawny'
+	END
+GO
+
+-- triger uruchamiaj�cy procedur� sprawdzania adresu e-mail --
+DROP TRIGGER IF EXISTS tr_check_email
+GO
+
+CREATE TRIGGER tr_check_email
+ON InsuranceCompany
+INSTEAD OF INSERT
+AS
+	SET NOCOUNT ON
+	DECLARE @Input nvarchar(255)
+	EXECUTE check_email @Input 
+	INSERT INTO InsuranceCompany SELECT
+		i.CompanyID,
+		i.Name,
+		i.TelephoneNumber,
+		@Input
+	FROM inserted i
+
+	SELECT * FROM inserted
+GO
+
+-- procedura sprawdzaj�ca date zako�czenia polisy w tabeli Insurance --
+DROP PROCEDURE IF EXISTS chceck_date
+GO
+
+CREATE PROCEDURE check_date
+
+	@start_date date,
+	@end_date date
+
+AS
+	IF (@end_date<=@start_date)
+	BEGIN
+	PRINT 'Data zako�czenia nie mo�e by� mniejsza lub r�wna dacie rozpocz�cia polisy'
+	END
+GO
+
+-- trigger uruchamiaj�cy procedur� sprawdzania daty dla tabeli Insurance --
+DROP TRIGGER IF EXISTS tr_check_date
+GO
+
+CREATE TRIGGER tr_check_date
+ON Insurance
+INSTEAD OF INSERT
+AS
+	SET NOCOUNT ON
+	DECLARE 
+		@StartDate date,
+		@EndDate date
+	EXECUTE check_date @StartDate, @EndDate 
+	INSERT INTO Insurance SELECT
+		i.PolicyNumber,
+		@StartDate,
+		@EndDate,
+		i.Price,
+		i.InsuranceCompany,
+		i.InsuranceAgent,
+		i.InsurenceType
+		
+	FROM inserted i
+
+	SELECT * FROM inserted
+GO
+
+-- procedura sprawdzaj�ca dat� urodzenia --
+DROP PROCEDURE IF EXISTS chech_born_date
+GO
+CREATE PROCEDURE check_born_date
+	@born_date date
+AS
+	IF (@born_date > GETDATE())
+	BEGIN
+		PRINT 'Data rutodzenia nie mo�e by� p�niejsza ni� obecny czas servera'
+	END
+GO
+
+DROP TRIGGER IF EXISTS tr_check_born_date
+GO
+
+CREATE TRIGGER tr_check_born_date
+ON Insurance
+INSTEAD OF INSERT
+AS
+	SET NOCOUNT ON
+	DECLARE 
+		@StartDate date,
+		@EndDate date
+	EXECUTE check_date @StartDate, @EndDate 
+	INSERT INTO Insurance SELECT
+		i.PolicyNumber,
+		@StartDate,
+		@EndDate,
+		i.Price,
+		i.InsuranceCompany,
+		i.InsuranceAgent,
+		i.InsurenceType
+		
+	FROM inserted i
+
+	SELECT * FROM inserted
+GO
+
+
+-- trigger sprawdzaj�cy warto�� kolumny Payment w tabeli InsuranceAgent --
+DROP TRIGGER IF EXISTS payment_price
+GO
+
+CREATE TRIGGER payment_price
+ON InsuranceAgent
+INSTEAD OF INSERT
+AS
+	SET NOCOUNT ON
+	DECLARE 
+		@payment money
+		SET @payment = (SELECT Payment FROM InsuranceAgent)
+		IF (@payment<0)
+		BEGIN
+			PRINT 'Wyp�ata nie mo�e by� mniejsza od 0' 
+		END
+GO
+
+-- trigger sprawdzaj�cy warto�� kolumny Price w tabeli Insurance --
+DROP TRIGGER IF EXISTS insurance_price
+GO
+
+CREATE TRIGGER insurance_price
+ON Insurance
+AS
+	SET NOCOUNT ON
+	DECLARE 
+		@price money
+		SET @price = (SELECT Price FROM Insurance)
+		IF (@price<0)
+		BEGIN
+			PRINT 'Kwota nie mo�e by� mniejsza od 0' 
+		END
+GO
